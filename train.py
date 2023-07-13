@@ -48,6 +48,8 @@ CUTOFF_LEN = 512
 LORA_R = 8
 LORA_ALPHA = 16
 LORA_DROPOUT = 0.05
+USE_FP16 = True
+USE_BF16 = False
 
 if torch.cuda.is_available():
     print('Torch & Cuda Detected')
@@ -60,6 +62,17 @@ model = OPTForCausalLM.from_pretrained(
         torch_dtype=torch.float16,
         device_map={'': 0},
     )
+
+amp_supported = torch.cuda.is_available() and hasattr(torch.cuda, "amp")
+
+if amp_supported:
+     print(f"AMP Supported: {amp_supported}")
+     bfloat16_supported = torch.cuda.is_bf16_supported()
+     print(f"BFLOAT16 Supported: {bfloat16_supported}")
+     if bfloat16_supported:
+          USE_FP16 = False
+          USE_BF16 = True
+
 tokenizer = AutoTokenizer.from_pretrained(
     BASE_MODEL,
     model_max_length=CUTOFF_LEN,
@@ -129,7 +142,8 @@ trainer = transformers.Trainer(
         max_steps=10000,
         num_train_epochs=EPOCHS,
         learning_rate=LEARNING_RATE,
-        fp16=True,
+        fp16=USE_FP16,
+        bf16=USE_BF16,
         logging_steps=10,
         output_dir=OUTPUT_PATH,
         save_steps=200,
