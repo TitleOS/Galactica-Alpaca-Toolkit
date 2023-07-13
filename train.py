@@ -6,7 +6,7 @@ import bitsandbytes as bnb
 from datasets import load_dataset
 import transformers
 from transformers import AutoTokenizer, AutoConfig, OPTForCausalLM, AutoTokenizer
-from peft import prepare_model_for_int8_training, LoraConfig, get_peft_model
+from peft import LoraConfig, get_peft_model
 
 parser = argparse.ArgumentParser(description='Training script')
 parser.add_argument('--base-model', type=str, help='Set Base Model')
@@ -17,25 +17,25 @@ args = parser.parse_args()
 
 if args.base_model:
     BASE_MODEL = args.base_model
-    print("Using model: ", BASE_MODEL)
+    print(f"Using model: BASE_MODEL")
 else:
     BASE_MODEL = "facebook/galactica-6.7b"
     print("No model provided, using default: facebook/galactica-6.7b")
 if args.dataset:
     DATA_PATH = args.dataset
-    print("Using dataset: ", DATA_PATH)
+    print(f"Using dataset: {DATA_PATH}")
 else:
     DATA_PATH = "tatsu-lab/alpaca"
     print("No data path provided, using tatsu-lab/alpaca")
 if args.output:
     OUTPUT_PATH = args.output
-    print("Using output path: ", OUTPUT_PATH)
+    print(f"Using output path: {OUTPUT_PATH}")
 else:
     OUTPUT_PATH = "mymodel-finetuned"
     print("No output path provided, defaulting to mymodel-finetuned")
 if args.epochs:
     EPOCHS = args.epochs
-    print("Epochs: ", EPOCHS)
+    print(f"Epochs: {EPOCHS}")
 else:
     EPOCHS = 3
     print("No epochs count provided, defaulting to 3")
@@ -53,14 +53,12 @@ USE_BF16 = False
 
 if torch.cuda.is_available():
     print('Torch & Cuda Detected')
-    print('Number of GPUs: ', torch.cuda.device_count())
+    print(f"Number of GPUs: {torch.cuda.device_count()}")
     for i in range(torch.cuda.device_count()):
         print(f'GPU Name [{i}]: ', torch.cuda.get_device_name(i))
 model = OPTForCausalLM.from_pretrained(
         BASE_MODEL,
-        #device_map="auto",
-        torch_dtype=torch.float16,
-        device_map={'': 0},
+        device_map="auto",
     )
 
 amp_supported = torch.cuda.is_available() and hasattr(torch.cuda, "amp")
@@ -106,7 +104,6 @@ except FileNotFoundError:
 
 
 def generate_prompt(data_point):
-    # sorry about the formatting disaster gotta move fast
     if data_point["input"]:
         return f"""Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.
 ### Instruction:
