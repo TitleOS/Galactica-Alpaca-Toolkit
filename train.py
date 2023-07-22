@@ -6,7 +6,7 @@ import bitsandbytes as bnb
 from datasets import load_dataset
 import transformers
 from transformers import AutoTokenizer, AutoConfig, OPTForCausalLM, AutoTokenizer
-from peft import LoraConfig, get_peft_model
+from peft import LoraConfig, get_peft_model, prepare_model_for_int8_training
 
 parser = argparse.ArgumentParser(description='Training script')
 parser.add_argument('--base-model', type=str, help='Set Base Model')
@@ -14,6 +14,7 @@ parser.add_argument('--dataset', type=str, help='Set Data Path')
 parser.add_argument('--output', type=str, help='Set the output model path')
 parser.add_argument('--epochs', type=int, help='Set the number of epochs')
 parser.add_argument('--steps', type=int, help='Set the number of steps')
+parser.add_argument('--int8', action='store_true', help='Use INT8 quantization')
 args = parser.parse_args()
 
 if args.base_model:
@@ -46,6 +47,12 @@ if args.steps:
 else:
     STEP_COUNT = 10000
     print("No step count provided, defaulting to 10k")
+if args.int8:
+    USE_INT8 = True
+    print("Using INT8 quantization")
+else:
+    USE_INT8 = False
+    print("Not using INT8 quantization")
 
 MICRO_BATCH_SIZE = 4
 BATCH_SIZE = 128
@@ -63,10 +70,6 @@ if torch.cuda.is_available():
     print(f"Number of GPUs: {torch.cuda.device_count()}")
     for i in range(torch.cuda.device_count()):
         print(f'GPU Name [{i}]: ', torch.cuda.get_device_name(i))
-model = OPTForCausalLM.from_pretrained(
-        BASE_MODEL,
-        device_map="auto",
-    )
 
 amp_supported = torch.cuda.is_available() and hasattr(torch.cuda, "amp")
 
@@ -77,6 +80,15 @@ if amp_supported:
      if bfloat16_supported:
           USE_FP16 = False
           USE_BF16 = True
+
+
+
+model = OPTForCausalLM.from_pretrained(
+        BASE_MODEL,
+        device_map="auto",
+        torch_dtype=torch.bfloat16 if USE_BF16 else torch.float16 if USE_FP16 else torch.float32,
+        load_in_8bit=USE_INT8,
+    )
 
 tokenizer = AutoTokenizer.from_pretrained(
     BASE_MODEL,
@@ -98,6 +110,9 @@ config = LoraConfig(
     bias="none",
     task_type="CAUSAL_LM",
 )
+if USE_INT8:
+    print("Preparing model for int8 training...")
+    model = prepare_model_for_int8_training(model)
 model = get_peft_model(model, config)
 
 
